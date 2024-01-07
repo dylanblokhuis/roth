@@ -1,0 +1,26 @@
+[package]
+name = "roth"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1.35.1", features = ["full"] }
+dioxus = { version = "0.4.3", default-features = false, features = [
+    "macro",
+    "hooks",
+] }
+tpaint = { git = "https://github.com/dylanblokhuis/tpaint.git", branch = "taffy-tree-rewrite" }
+tpaint_wgpu = { git = "https://github.com/dylanblokhuis/tpaint.git", branch = "taffy-tree-rewrite" }
+wgpu = "0.18"
+log = "0.4"
+raw-window-handle = "0.6"
+simple_logger = "4.2"
+winit = "0.28"
+futures-util = "0.3.30"
+ipc-channel = { version = "0.18.0", features = ["async"] }
+serde = { version = "1.0.195", features = ["derive"] }
+
+[features]
+hot-reload = ["tpaint/hot-reload"]

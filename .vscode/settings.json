@@ -1,0 +1,9 @@
+{
+    "rust-analyzer.showUnlinkedFileNotification": false,
+    "tailwindCSS.experimental.classRegex": [
+        "class: \"(.*)\""
+    ],
+    "tailwindCSS.includeLanguages": {
+        "rust": "html"
+    },
+}
