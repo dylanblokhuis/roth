@@ -17,10 +17,20 @@ wgpu = "0.18"
 log = "0.4"
 raw-window-handle = "0.6"
 simple_logger = "4.2"
-winit = "0.28"
+winit = { workspace = true }
 futures-util = "0.3.30"
 ipc-channel = { version = "0.18.0", features = ["async"] }
-serde = { version = "1.0.195", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+roth_shared = { workspace = true }
+bevy = { workspace = true }
 
 [features]
 hot-reload = ["tpaint/hot-reload"]
+
+[workspace]
+members = ["example_bevy", "shared"]
+
+[workspace.dependencies]
+roth_shared = { path = "./shared" }
+winit = { version = "0.29", features = ["serde", "rwh_05"] }
+bevy = { path = "../bevy" }
