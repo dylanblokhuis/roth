@@ -1,20 +1,18 @@
 //! A simple 3D scene with light shining over a cube sitting on a plane.
 
+use std::any::TypeId;
 use std::f32::consts::PI;
 
 use bevy::input::keyboard::KeyboardInput;
 use bevy::math::DVec2;
-use bevy::window::Cursor;
+use bevy::pbr::CascadeShadowConfigBuilder;
+use bevy::utils::Uuid;
 use bevy::winit::converters::{convert_element_state, convert_physical_key_code};
 use bevy::winit::WindowAndInputEventWriters;
 use bevy::{
     core_pipeline::experimental::taa::{TemporalAntiAliasBundle, TemporalAntiAliasPlugin},
-    pbr::{
-        ScreenSpaceAmbientOcclusionBundle, ScreenSpaceAmbientOcclusionQualityLevel,
-        ScreenSpaceAmbientOcclusionSettings,
-    },
+    pbr::ScreenSpaceAmbientOcclusionBundle,
     prelude::*,
-    render::camera::TemporalJitter,
 };
 use ipc_channel::ipc::{IpcOneShotServer, IpcReceiver, IpcSender};
 use roth_shared::{EditorToRuntimeMsg, RuntimeToEditorMsg};
@@ -24,10 +22,6 @@ struct EditorIpc {
 }
 
 fn main() {
-    // let window_id = std::env::args()
-    //     .nth(2)
-    //     .expect("expected window id as first argument");
-
     let ipc_server = std::env::args()
         .nth(4)
         .expect("expected ipc server as second argument");
@@ -59,14 +53,14 @@ fn main() {
             brightness: 5.0,
             ..default()
         })
-        .add_plugins(TemporalAntiAliasPlugin)
+        // .add_plugins(TemporalAntiAliasPlugin)
         .insert_non_send_resource(EditorIpc {
             sender: editor_sender,
             receiver: editor_receiver,
         })
+        // .register_type::<Camera3dBundle>()
         .add_systems(Startup, setup)
-        .add_systems(Update, (handle_ipc, send_entities))
-        .add_systems(Update, update)
+        .add_systems(Update, (handle_ipc))
         .run();
 }
 
@@ -74,6 +68,7 @@ fn handle_ipc(
     mut windows: Query<(Entity, &mut Window)>,
     ipc: NonSend<EditorIpc>,
     mut event_writers: WindowAndInputEventWriters,
+    mut app_exit_events: ResMut<Events<bevy::app::AppExit>>,
 ) {
     let (window_entity, mut window) = windows.single_mut();
     let scale_factor = window.scale_factor();
@@ -135,24 +130,91 @@ fn handle_ipc(
                 window: window_entity,
             });
         }
+        EditorToRuntimeMsg::Shutdown => {
+            app_exit_events.send(bevy::app::AppExit);
+        }
         _ => {}
     }
 }
 
+#[derive(Component, Reflect)]
+struct TestComponent {
+    mesh: Mesh,
+}
+
 fn send_entities(world: &mut World) {
-    let mut entities = world.query::<Entity>();
-    let mut entities = entities.iter(&world).collect::<Vec<_>>();
-    entities.sort_by_key(|entity| *entity);
-    // let entities = entities
-    //     .iter()
-    //     .map(|(entity, debug_name)| (*entity, debug_name.name.clone()))
-    //     .collect::<Vec<_>>();
+    {
+        // let registry = world.resource::<AppTypeRegistry>();
+        // let registry = registry.read();
+        // let p = registry.get(TypeId::of::<Camera3dBundle>());
+        // println!("p: {:?}", p);
+        // for t in registry.iter() {
+        //     println!("type: {:?}", t);
+        // }
+        // let bundles = world.bundles();
+        // let bundle_id = bundles.get_id(TypeId::of::<Camera3dBundle>());
+        // println!("bundle_id: {:?}", bundle_id);
+    }
 
-    let ipc = world.get_non_send_resource::<EditorIpc>().unwrap();
+    {
+        // let mut meshes = world.resource_mut::<Assets<Mesh>>();
+        // let asset_id = AssetId::<Mesh>::Uuid {
+        //     uuid: Uuid::new_v4(),
+        // };
+        // meshes.insert(asset_id, Mesh::from(shape::Cube { size: 1.0 }));
+        // // let handle = meshes.get(asset_id).unwrap();
+        // drop(meshes);
+        // let registry = world.resource::<AppTypeRegistry>();
+        // let mut scene_world = World::new();
+        // scene_world.insert_resource(registry.clone());
+        // scene_world.spawn((Camera3dBundle::default(),));
 
-    ipc.sender
-        .send(RuntimeToEditorMsg::Entities { entities })
-        .unwrap();
+        // scene_world.spawn((PbrBundle {
+        //     mesh: Handle::Weak(asset_id),
+        //     ..default()
+        // },));
+        // scene_world.spawn(DirectionalLightBundle {
+        //     directional_light: DirectionalLight {
+        //         shadows_enabled: true,
+        //         ..default()
+        //     },
+        //     transform: Transform {
+        //         translation: Vec3::new(0.0, 2.0, 0.0),
+        //         rotation: Quat::from_rotation_x(-PI / 4.),
+        //         ..default()
+        //     },
+        //     // The default cascade config is designed to handle large scenes.
+        //     // As this example has a much smaller world, we can tighten the shadow
+        //     // bounds for better visual quality.
+        //     cascade_shadow_config: CascadeShadowConfigBuilder {
+        //         first_cascade_far_bound: 4.0,
+        //         maximum_distance: 10.0,
+        //         ..default()
+        //     }
+        //     .into(),
+        //     ..default()
+        // });
+        // let scene = DynamicScene::from_world(&world);
+        // let ron = scene.serialize_ron(&registry).unwrap();
+        // std::fs::write("scene.ron", ron).unwrap();
+        // let server = world.resource::<AssetServer>();
+
+        // server.
+    }
+
+    // let mut entities = world.query::<Entity>();
+    // let mut entities = entities.iter(&world).collect::<Vec<_>>();
+    // entities.sort_by_key(|entity| *entity);
+    // // let entities = entities
+    // //     .iter()
+    // //     .map(|(entity, debug_name)| (*entity, debug_name.name.clone()))
+    // //     .collect::<Vec<_>>();
+
+    // let ipc = world.get_non_send_resource::<EditorIpc>().unwrap();
+
+    // ipc.sender
+    //     .send(RuntimeToEditorMsg::Entities { entities })
+    //     .unwrap();
 
     // let mut sender = ipc.sender.clone();
     // let msg = RuntimeToEditorMsg::Entities(entities);
@@ -165,17 +227,16 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
-    commands
-        .spawn(Camera3dBundle {
-            camera: Camera {
-                hdr: true,
-                ..default()
-            },
-            transform: Transform::from_xyz(-2.0, 2.0, -2.0).looking_at(Vec3::ZERO, Vec3::Y),
+    commands.spawn(Camera3dBundle {
+        camera: Camera {
+            hdr: true,
             ..default()
-        })
-        .insert(ScreenSpaceAmbientOcclusionBundle::default())
-        .insert(TemporalAntiAliasBundle::default());
+        },
+        transform: Transform::from_xyz(-2.0, 2.0, -2.0).looking_at(Vec3::ZERO, Vec3::Y),
+        ..default()
+    });
+    // .insert(ScreenSpaceAmbientOcclusionBundle::default())
+    // .insert(TemporalAntiAliasBundle::default());
 
     let material = materials.add(StandardMaterial {
         base_color: Color::rgb(0.5, 0.5, 0.5),
@@ -183,41 +244,41 @@ fn setup(
         reflectance: 0.0,
         ..default()
     });
+
+    // // commands.spawn(asset_server.load(path));
+
     commands.spawn(PbrBundle {
         mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
         material: material.clone(),
         transform: Transform::from_xyz(0.0, 0.0, 1.0),
         ..default()
     });
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-        material: material.clone(),
-        transform: Transform::from_xyz(0.0, -1.0, 0.0),
-        ..default()
-    });
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-        material,
-        transform: Transform::from_xyz(1.0, 0.0, 0.0),
-        ..default()
-    });
-    commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::UVSphere {
-                radius: 0.4,
-                sectors: 72,
-                stacks: 36,
-            })),
-            material: materials.add(StandardMaterial {
-                base_color: Color::rgb(0.4, 0.4, 0.4),
-                perceptual_roughness: 1.0,
-                reflectance: 0.0,
-                ..default()
-            }),
-            ..default()
-        },
-        SphereMarker,
-    ));
+    // commands.spawn(PbrBundle {
+    //     mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+    //     material: material.clone(),
+    //     transform: Transform::from_xyz(0.0, -1.0, 0.0),
+    //     ..default()
+    // });
+    // commands.spawn(PbrBundle {
+    //     mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
+    //     material,
+    //     transform: Transform::from_xyz(1.0, 0.0, 0.0),
+    //     ..default()
+    // });
+    // commands.spawn((PbrBundle {
+    //     mesh: meshes.add(Mesh::from(shape::UVSphere {
+    //         radius: 0.4,
+    //         sectors: 72,
+    //         stacks: 36,
+    //     })),
+    //     material: materials.add(StandardMaterial {
+    //         base_color: Color::rgb(0.4, 0.4, 0.4),
+    //         perceptual_roughness: 1.0,
+    //         reflectance: 0.0,
+    //         ..default()
+    //     }),
+    //     ..default()
+    // },));
 
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
@@ -232,103 +293,4 @@ fn setup(
         )),
         ..default()
     });
-
-    commands.spawn(
-        TextBundle::from_section(
-            "",
-            TextStyle {
-                font: asset_server.load("fonts/FiraMono-Medium.ttf"),
-                font_size: 26.0,
-                ..default()
-            },
-        )
-        .with_style(Style {
-            position_type: PositionType::Absolute,
-            bottom: Val::Px(10.0),
-            left: Val::Px(10.0),
-            ..default()
-        }),
-    );
 }
-
-fn update(
-    camera: Query<
-        (
-            Entity,
-            Option<&ScreenSpaceAmbientOcclusionSettings>,
-            Option<&TemporalJitter>,
-        ),
-        With<Camera>,
-    >,
-    mut text: Query<&mut Text>,
-    mut sphere: Query<&mut Transform, With<SphereMarker>>,
-    mut commands: Commands,
-    keycode: Res<ButtonInput<KeyCode>>,
-    time: Res<Time>,
-) {
-    let mut sphere = sphere.single_mut();
-    sphere.translation.y = (time.elapsed_seconds() / 1.7).sin() * 0.7;
-
-    let (camera_entity, ssao_settings, temporal_jitter) = camera.single();
-
-    let mut commands = commands.entity(camera_entity);
-    if keycode.just_pressed(KeyCode::Digit1) {
-        commands.remove::<ScreenSpaceAmbientOcclusionSettings>();
-    }
-    if keycode.just_pressed(KeyCode::Digit2) {
-        commands.insert(ScreenSpaceAmbientOcclusionSettings {
-            quality_level: ScreenSpaceAmbientOcclusionQualityLevel::Low,
-        });
-    }
-    if keycode.just_pressed(KeyCode::Digit3) {
-        commands.insert(ScreenSpaceAmbientOcclusionSettings {
-            quality_level: ScreenSpaceAmbientOcclusionQualityLevel::Medium,
-        });
-    }
-    if keycode.just_pressed(KeyCode::Digit4) {
-        commands.insert(ScreenSpaceAmbientOcclusionSettings {
-            quality_level: ScreenSpaceAmbientOcclusionQualityLevel::High,
-        });
-    }
-    if keycode.just_pressed(KeyCode::Digit5) {
-        commands.insert(ScreenSpaceAmbientOcclusionSettings {
-            quality_level: ScreenSpaceAmbientOcclusionQualityLevel::Ultra,
-        });
-    }
-    if keycode.just_pressed(KeyCode::Space) {
-        if temporal_jitter.is_some() {
-            commands.remove::<TemporalJitter>();
-        } else {
-            commands.insert(TemporalJitter::default());
-        }
-    }
-
-    let mut text = text.single_mut();
-    let text = &mut text.sections[0].value;
-    text.clear();
-
-    let (o, l, m, h, u) = match ssao_settings.map(|s| s.quality_level) {
-        None => ("*", "", "", "", ""),
-        Some(ScreenSpaceAmbientOcclusionQualityLevel::Low) => ("", "*", "", "", ""),
-        Some(ScreenSpaceAmbientOcclusionQualityLevel::Medium) => ("", "", "*", "", ""),
-        Some(ScreenSpaceAmbientOcclusionQualityLevel::High) => ("", "", "", "*", ""),
-        Some(ScreenSpaceAmbientOcclusionQualityLevel::Ultra) => ("", "", "", "", "*"),
-        _ => unreachable!(),
-    };
-
-    text.push_str("SSAO Quality:\n");
-    text.push_str(&format!("(1) {o}Off{o}\n"));
-    text.push_str(&format!("(2) {l}Low{l}\n"));
-    text.push_str(&format!("(3) {m}Medium{m}\n"));
-    text.push_str(&format!("(4) {h}High{h}\n"));
-    text.push_str(&format!("(5) {u}Ultra{u}\n\n"));
-
-    text.push_str("Temporal Antialiasing:\n");
-    text.push_str(match temporal_jitter {
-        Some(_) => "(Space) Enabled",
-        None => "(Space) Disabled",
-    });
-}
-
-#[derive(Component)]
-struct SphereMarker;

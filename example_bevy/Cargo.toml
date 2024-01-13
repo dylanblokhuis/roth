@@ -8,4 +8,4 @@ edition = "2021"
 [dependencies]
 ipc-channel = "0.18.0"
 roth_shared = { workspace = true }
-bevy = { workspace = true }
+bevy = { path = "../../bevy", features = ["serialize"] }

@@ -1,10 +1,10 @@
-use bevy::{core::DebugName, ecs::entity::Entity};
+use bevy::ecs::entity::Entity;
 use serde::{Deserialize, Serialize};
 use winit::{dpi::PhysicalPosition, keyboard::SmolStr};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum EditorToRuntimeMsg {
-    Todo,
+    Shutdown,
     LayoutChange {
         min: (f32, f32),
         width: f32,
@@ -36,5 +36,5 @@ pub enum EditorToRuntimeMsg {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum RuntimeToEditorMsg {
     Todo,
-    Entities { entities: Vec<Entity> },
+    // Entities { entities: Vec<Entity> },
 }

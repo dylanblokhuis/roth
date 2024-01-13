@@ -8,4 +8,6 @@ edition = "2021"
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 winit = { workspace = true }
-bevy = { workspace = true }
+bevy = { path = "../../bevy", default-features = false, features = [
+    "serialize",
+] }

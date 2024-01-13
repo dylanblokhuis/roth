@@ -1,79 +1,123 @@
 use crate::RootContext;
-use bevy::ecs::entity::Entity;
 use dioxus::prelude::*;
 use futures_util::stream::StreamExt;
 use ipc_channel::ipc::{IpcOneShotServer, IpcReceiver, IpcSender};
 use roth_shared::{EditorToRuntimeMsg, RuntimeToEditorMsg};
-use tpaint::prelude::*;
+use tpaint::{components::image::Image, prelude::*};
+
+#[derive(PartialEq, Clone, Copy)]
+enum RuntimeStatus {
+    Stopped,
+    Stopping,
+    Running,
+}
+
+struct SharedState {
+    runtime_status: RuntimeStatus,
+}
+
+impl Default for SharedState {
+    fn default() -> Self {
+        Self {
+            runtime_status: RuntimeStatus::Stopped,
+        }
+    }
+}
 
 pub fn app(cx: Scope) -> Element {
-    let entities = use_state::<Vec<Entity>>(cx, || vec![]);
+    // let entities = use_state::<Vec<Entity>>(cx, || vec![]);
+    use_shared_state_provider(cx, || SharedState::default());
+    let shared_state = use_shared_state::<SharedState>(cx).unwrap();
+
+    let runtime_status = shared_state.read().runtime_status.clone();
 
     render! {
         view {
-            class: "w-full   text-white h-full",
+            class: "w-full h-full p-5 bg-zinc-700 flex-col gap-y-8",
 
             view {
-                class: "w-25% bg-slate-900 h-full p-10 text-white overflow-y-scroll flex-col scrollbar-default gap-10",
-                tabindex: 1,
-                oninput: move |event| {
-                    println!("sidebar oninput: {:?}", event);
-                },
-                onclick: move |_| {
-                    println!("sidebar onclick");
-                },
+                class: "rounded-5 w-full py-5 px-15 bg-zinc-800 text-white justify-between items-center",
 
-                "Entities",
 
-                for entity in entities.iter() {
-                    rsx! {
-                        view {
-                            class: "text-white",
-                            "{entity.index()}"
+                view {
+                    class: "text-white gap-15 items-center",
+
+                    Image {
+                        class: "h-40",
+                        src: "https://raw.githubusercontent.com/bevyengine/bevy/78b5f323f87500bfd20eb5eb45a599d06324ba7b/assets/branding/bevy_bird_dark.svg".to_string(),
+                    }
+
+                    "File",
+                    "Edit",
+                    "View",
+                    "Window",
+                }
+
+                view {
+                    class: "text-white text-18",
+                    tabindex: 0,
+                    onclick: move |_| {
+                        println!("start runtime");
+                        shared_state.with_mut(|state| {
+                            if state.runtime_status == RuntimeStatus::Stopped {
+                                state.runtime_status = RuntimeStatus::Running;
+                            } else if state.runtime_status == RuntimeStatus::Running {
+                                state.runtime_status = RuntimeStatus::Stopping;
+                            }
+                        });
+                    },
+
+                    if runtime_status == RuntimeStatus::Stopped { rsx! { "Play" } } else { rsx! { "Stop" } }
+                }
+            }
+
+            view {
+                class: "w-full h-full gap-x-8",
+
+                // sidebar
+                view {
+                    class: "w-25% bg-zinc-800 rounded-5 h-full p-10 text-white overflow-y-scroll flex-col scrollbar-default gap-10",
+                }
+
+                // viewport
+                view {
+                    class: "w-75% flex-col h-full bg-transparent rounded-5",
+
+                    if runtime_status != RuntimeStatus::Stopped {
+                        rsx! {
+                            RuntimeWindow {}
+                        }
+                    } else {
+                        rsx! {
+                            view {
+                                class: "w-full h-full justify-center items-center bg-zinc-900",
+                            }
                         }
                     }
                 }
             }
 
             view {
-                class: "w-75% flex-col h-full",
+                class: "w-full h-300 bg-zinc-800 text-white rounded-5 p-10",
 
-                view {
-                    class: "w-full h-75% text-white",
-
-                    RuntimeWindow {
-                        entity_state: &entities,
-                    }
-                }
-
-                view {
-                    class: "w-full h-25% p-10 text-white bg-slate-700",
-
-                    "Console"
-                }
+                "Assets"
             }
-
-
         }
     }
 }
 
-#[derive(Props)]
-struct RuntimeProps<'a> {
-    entity_state: &'a UseState<Vec<Entity>>,
-}
-
-fn RuntimeWindow<'a>(cx: Scope<'a, RuntimeProps<'a>>) -> Element {
+fn RuntimeWindow<'a>(cx: Scope<'a>) -> Element {
     let window_id = cx
         .consume_context::<RootContext>()
         .unwrap()
         .window_id
         .to_string();
+    let shared_state = use_shared_state::<SharedState>(cx).unwrap();
 
-    let entity_state = cx.props.entity_state;
+    // let entity_state = cx.props.entity_state;
 
     let runtime_sender = use_coroutine(cx, |mut rx: UnboundedReceiver<EditorToRuntimeMsg>| {
-        to_owned![entity_state];
+        to_owned![shared_state];
         async move {
             let (server, server_name) =
                 IpcOneShotServer::<(IpcSender<EditorToRuntimeMsg>, String)>::new().unwrap();
@@ -104,9 +148,11 @@ fn RuntimeWindow<'a>(cx: Scope<'a, RuntimeProps<'a>>) -> Element {
             let mut runtime_message_stream = runtime_receiver.to_stream();
 
             let handle_runtime_message = |msg: RuntimeToEditorMsg| match msg {
-                RuntimeToEditorMsg::Entities { entities } => entity_state.set(entities),
+                // RuntimeToEditorMsg::Entities { entities } => entity_state.set(entities),
                 _ => {}
             };
+
+            let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
 
             loop {
                 tokio::select! {
@@ -117,6 +163,15 @@ fn RuntimeWindow<'a>(cx: Scope<'a, RuntimeProps<'a>>) -> Element {
                         let msg = msg.unwrap();
                         handle_runtime_message(msg);
                     }
+
+                    _ = interval.tick() => {
+                        let mut shared_state = shared_state.write();
+                        if shared_state.runtime_status == RuntimeStatus::Stopping {
+                            runtime_sender.send(EditorToRuntimeMsg::Shutdown).unwrap();
+                            shared_state.runtime_status = RuntimeStatus::Stopped;
+                        }
+                    }
+
                     _ = runtime_process.wait() => break,
                 }
             }
@@ -128,7 +183,7 @@ fn RuntimeWindow<'a>(cx: Scope<'a, RuntimeProps<'a>>) -> Element {
             class: "w-full h-full bg-transparent",
             tabindex: 0,
             onclick: move |_| {
-                runtime_sender.send(EditorToRuntimeMsg::Todo);
+                runtime_sender.send(EditorToRuntimeMsg::Shutdown);
             },
             onlayout: move |event| {
                 runtime_sender.send(EditorToRuntimeMsg::LayoutChange {
