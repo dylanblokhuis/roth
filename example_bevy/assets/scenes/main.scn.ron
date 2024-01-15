@@ -1,0 +1,39 @@
+(
+  resources: {
+    "bevy_render::camera::clear_color::ClearColor": (Rgba(
+      red: 0.16862746,
+      green: 0.17254902,
+      blue: 0.18431373,
+      alpha: 1.0,
+    )),
+    "bevy_render::view::Msaa": Sample4,
+    "bevy_pbr::light::AmbientLight": (
+      color: Rgba(
+        red: 1.0,
+        green: 1.0,
+        blue: 1.0,
+        alpha: 1.0,
+      ),
+      brightness: 0.05,
+    ),
+    "bevy_pbr::light::DirectionalLightShadowMap": (
+      size: 2048,
+    ),
+    "bevy_pbr::light::PointLightShadowMap": (
+      size: 1024,
+    ),
+    "bevy_audio::audio::GlobalVolume": (
+      volume: (1.0),
+    ),
+    "bevy_audio::audio::SpatialScale": ((
+      x: 1.0,
+      y: 1.0,
+      z: 1.0,
+    )),
+  },
+  entities: {
+    4294967296: (
+      components: {},
+    ),
+  },
+)

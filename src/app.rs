@@ -1,32 +1,59 @@
-use crate::RootContext;
+use std::process::Stdio;
+
+use crate::{drawer::Drawer, scene_viewer::SceneViewer, RootContext};
 use dioxus::prelude::*;
 use futures_util::stream::StreamExt;
 use ipc_channel::ipc::{IpcOneShotServer, IpcReceiver, IpcSender};
 use roth_shared::{EditorToRuntimeMsg, RuntimeToEditorMsg};
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tpaint::{components::image::Image, prelude::*};
 
 #[derive(PartialEq, Clone, Copy)]
-enum RuntimeStatus {
+pub enum RuntimeStatus {
     Stopped,
-    Stopping,
     Running,
 }
 
-struct SharedState {
-    runtime_status: RuntimeStatus,
+pub struct SharedState {
+    pub project_path: String,
+    pub runtime_status: RuntimeStatus,
+    runtime_sender: Option<tokio::sync::mpsc::UnboundedSender<EditorToRuntimeMsg>>,
+    runtime_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<EditorToRuntimeMsg>>,
+    pub runtime_output: String,
 }
 
-impl Default for SharedState {
-    fn default() -> Self {
-        Self {
-            runtime_status: RuntimeStatus::Stopped,
+impl SharedState {
+    pub fn start_runtime(&mut self) {
+        let (runtime_sender, runtime_receiver) =
+            tokio::sync::mpsc::unbounded_channel::<EditorToRuntimeMsg>();
+        self.runtime_sender = Some(runtime_sender);
+        self.runtime_receiver = Some(runtime_receiver);
+        self.runtime_status = RuntimeStatus::Running;
+    }
+
+    pub fn stop_runtime(&mut self) {
+        let sender = self.runtime_sender.take();
+        if let Some(sender) = sender {
+            sender.send(EditorToRuntimeMsg::Shutdown).unwrap();
+        }
+        self.runtime_status = RuntimeStatus::Stopped;
+    }
+
+    pub fn send_to_runtime(&self, msg: EditorToRuntimeMsg) {
+        if let Some(runtime_sender) = &self.runtime_sender {
+            runtime_sender.send(msg).unwrap();
         }
     }
 }
 
 pub fn app(cx: Scope) -> Element {
-    // let entities = use_state::<Vec<Entity>>(cx, || vec![]);
-    use_shared_state_provider(cx, || SharedState::default());
+    use_shared_state_provider(cx, || SharedState {
+        project_path: "/home/dylan/dev/roth/example_bevy".to_string(),
+        runtime_status: RuntimeStatus::Stopped,
+        runtime_sender: None,
+        runtime_receiver: None,
+        runtime_output: String::new(),
+    });
     let shared_state = use_shared_state::<SharedState>(cx).unwrap();
 
     let runtime_status = shared_state.read().runtime_status.clone();
@@ -54,30 +81,41 @@ pub fn app(cx: Scope) -> Element {
                 }
 
                 view {
-                    class: "text-white text-18",
-                    tabindex: 0,
-                    onclick: move |_| {
-                        println!("start runtime");
-                        shared_state.with_mut(|state| {
-                            if state.runtime_status == RuntimeStatus::Stopped {
-                                state.runtime_status = RuntimeStatus::Running;
-                            } else if state.runtime_status == RuntimeStatus::Running {
-                                state.runtime_status = RuntimeStatus::Stopping;
-                            }
-                        });
-                    },
+                    class: "gap-x-16",
 
-                    if runtime_status == RuntimeStatus::Stopped { rsx! { "Play" } } else { rsx! { "Stop" } }
+                    view {
+                        class: "text-white text-18",
+                        tabindex: 0,
+                        onclick: move |_| {
+                            shared_state.read().send_to_runtime(EditorToRuntimeMsg::Save);
+                        },
+
+                        "Save"
+                    }
+
+                    view {
+                        class: "text-white text-18",
+                        tabindex: 0,
+                        onclick: move |_| {
+                            if runtime_status == RuntimeStatus::Stopped {
+                                shared_state.write().start_runtime();
+                            } else {
+                                shared_state.write().stop_runtime();
+                            }
+                        },
+
+                        if runtime_status == RuntimeStatus::Stopped { rsx! { "Play" } } else { rsx! { "Stop" } }
+                    }
                 }
+
+
             }
 
             view {
                 class: "w-full h-full gap-x-8",
 
                 // sidebar
-                view {
-                    class: "w-25% bg-zinc-800 rounded-5 h-full p-10 text-white overflow-y-scroll flex-col scrollbar-default gap-10",
-                }
+                SceneViewer {}
 
                 // viewport
                 view {
@@ -97,11 +135,7 @@ pub fn app(cx: Scope) -> Element {
                 }
             }
 
-            view {
-                class: "w-full h-300 bg-zinc-800 text-white rounded-5 p-10",
-
-                "Assets"
-            }
+            Drawer {}
         }
     }
 }
@@ -114,25 +148,38 @@ fn RuntimeWindow<'a>(cx: Scope<'a>) -> Element {
         .to_string();
     let shared_state = use_shared_state::<SharedState>(cx).unwrap();
 
-    // let entity_state = cx.props.entity_state;
-
     let runtime_sender = use_coroutine(cx, |mut rx: UnboundedReceiver<EditorToRuntimeMsg>| {
         to_owned![shared_state];
         async move {
             let (server, server_name) =
                 IpcOneShotServer::<(IpcSender<EditorToRuntimeMsg>, String)>::new().unwrap();
 
+            let project_path = shared_state.read().project_path.clone();
             let mut runtime_process = tokio::process::Command::new("cargo")
                 .arg("run")
                 .arg("--manifest-path")
-                .arg("./example_bevy/Cargo.toml")
+                .arg(format!("{}/Cargo.toml", project_path))
                 .arg("--")
                 .arg("--window-id")
                 .arg(window_id)
                 .arg("--ipc-server")
                 .arg(server_name)
+                .kill_on_drop(true)
+                .stderr(Stdio::piped())
+                .stdout(Stdio::piped())
                 .spawn()
                 .expect("failed to start runtime process");
+
+            let stdout = runtime_process
+                .stdout
+                .take()
+                .expect("runtime_process did not have a handle to stdout");
+            let stderr = runtime_process
+                .stderr
+                .take()
+                .expect("runtime_process did not have a handle to stderr");
+            let mut stdout_reader = BufReader::new(stdout).lines();
+            let mut stderr_reader = BufReader::new(stderr).lines();
 
             let (_, (runtime_sender, oneshot_server_name)) = server.accept().unwrap();
 
@@ -152,7 +199,13 @@ fn RuntimeWindow<'a>(cx: Scope<'a>) -> Element {
                 _ => {}
             };
 
-            let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
+            let mut app_runtime_receiver = {
+                let mut shared_state = shared_state.write();
+                shared_state
+                    .runtime_receiver
+                    .take()
+                    .expect("Runtime component was created without any runtime receiver")
+            };
 
             loop {
                 tokio::select! {
@@ -164,12 +217,21 @@ fn RuntimeWindow<'a>(cx: Scope<'a>) -> Element {
                         handle_runtime_message(msg);
                     }
 
-                    _ = interval.tick() => {
+                    Some(msg) = app_runtime_receiver.recv() => {
+                        runtime_sender.send(msg).unwrap();
+                    }
+
+                    // handle the process things here
+                    Ok(line) = stdout_reader.next_line() => {
                         let mut shared_state = shared_state.write();
-                        if shared_state.runtime_status == RuntimeStatus::Stopping {
-                            runtime_sender.send(EditorToRuntimeMsg::Shutdown).unwrap();
-                            shared_state.runtime_status = RuntimeStatus::Stopped;
-                        }
+                        shared_state.runtime_output.push_str(&line.unwrap());
+                        shared_state.runtime_output.push_str(&"\n");
+                    }
+
+                    Ok(line) = stderr_reader.next_line() => {
+                        let mut shared_state = shared_state.write();
+                        shared_state.runtime_output.push_str(&line.unwrap());
+                        shared_state.runtime_output.push_str(&"\n");
                     }
 
                     _ = runtime_process.wait() => break,

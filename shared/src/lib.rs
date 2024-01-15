@@ -5,6 +5,10 @@ use winit::{dpi::PhysicalPosition, keyboard::SmolStr};
 #[derive(Debug, Serialize, Deserialize)]
 pub enum EditorToRuntimeMsg {
     Shutdown,
+    Save,
+    LoadScene {
+        path: String,
+    },
     LayoutChange {
         min: (f32, f32),
         width: f32,

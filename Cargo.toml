@@ -11,8 +11,8 @@ dioxus = { version = "0.4.3", default-features = false, features = [
     "macro",
     "hooks",
 ] }
-tpaint = { git = "https://github.com/dylanblokhuis/tpaint.git", branch = "taffy-tree-rewrite" }
-tpaint_wgpu = { git = "https://github.com/dylanblokhuis/tpaint.git", branch = "taffy-tree-rewrite" }
+tpaint = { git = "https://github.com/dylanblokhuis/tpaint.git" }
+tpaint_wgpu = { git = "https://github.com/dylanblokhuis/tpaint.git" }
 wgpu = "0.18"
 log = "0.4"
 raw-window-handle = "0.6"

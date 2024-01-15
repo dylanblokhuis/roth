@@ -5,6 +5,10 @@ use tpaint_wgpu::{Renderer, ScreenDescriptor};
 use winit::event::WindowEvent;
 
 mod app;
+mod asset_browser;
+mod console;
+mod drawer;
+mod scene_viewer;
 
 type UserEvent = ();
 
