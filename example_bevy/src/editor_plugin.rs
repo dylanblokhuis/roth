@@ -1,19 +1,29 @@
-use std::any::TypeId;
+use std::{any::TypeId, ptr::NonNull};
 
 use bevy::{
-    ecs::system::{SystemParam, SystemState},
+    ecs::{
+        component::{ComponentId, ComponentInfo},
+        system::{EntityCommands, SystemParam, SystemState},
+    },
     input::keyboard::KeyboardInput,
     log,
     math::DVec2,
     prelude::*,
+    ptr::OwningPtr,
+    reflect::{
+        serde::{ReflectSerializer, TypedReflectDeserializer},
+        ReflectFromPtr, TypeRegistry,
+    },
+    scene::serialize_ron,
     winit::{
         converters::{convert_element_state, convert_physical_key_code},
         WindowAndInputEventWriters,
     },
 };
+use serde::de::DeserializeSeed;
 
 use ipc_channel::ipc::{IpcOneShotServer, IpcReceiver, IpcSender};
-use roth_shared::{EditorToRuntimeMsg, RuntimeToEditorMsg};
+use roth_shared::{EditorToRuntimeMsg, RonComponentSerialized, RuntimeToEditorMsg};
 
 #[derive(States, Default, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum EditorState {
@@ -70,6 +80,118 @@ fn handle_ipc(mut world: &mut World) {
         return;
     };
 
+    match msg {
+        EditorToRuntimeMsg::GetEntities => {
+            let type_registry = world.resource::<AppTypeRegistry>().read();
+            // type_registry.read().get_type_info(type_id)
+            let entities = world
+                .iter_entities()
+                .map(|entity| {
+                    let components = entity
+                        .archetype()
+                        .components()
+                        .filter_map(|component_id| {
+                            let component_info = world.components().get_info(component_id).unwrap();
+
+                            let type_id = component_info.type_id().unwrap();
+                            let Some(type_registration) = type_registry.get(type_id) else {
+                                return Some(RonComponentSerialized {
+                                    type_name: component_info.name().to_string(),
+                                    value: "Unit".to_string(),
+                                });
+                            };
+                            let reflect_from_ptr =
+                                type_registration.data::<ReflectFromPtr>().unwrap();
+                            let component_ptr = entity.get_by_id(component_id).unwrap();
+                            unsafe {
+                                let reflect = reflect_from_ptr.as_reflect(component_ptr);
+                                let serializer = ReflectSerializer::new(reflect, &type_registry);
+                                let Ok(ron) = roth_shared::ron::to_string(&serializer) else {
+                                    return Some(RonComponentSerialized {
+                                        type_name: component_info.name().to_string(),
+                                        value: "Unit".to_string(),
+                                    });
+                                };
+                                println!(
+                                    "serialized: {:?}",
+                                    RonComponentSerialized {
+                                        type_name: component_info.name().to_string(),
+                                        value: ron.clone(),
+                                    }
+                                );
+                                Some(RonComponentSerialized {
+                                    type_name: component_info.name().to_string(),
+                                    value: ron,
+                                })
+                            }
+
+                            // let type_info = component_info
+                            //     .type_id()
+                            //     .and_then(|type_id| type_registry.get_type_info(type_id));
+                            // let (_, name) = component_info.name().rsplit_once("::").unwrap();
+                            // let (crate_name, _) = component_info.name().split_once("::").unwrap();
+                            // (name, crate_name.to_string())
+                        })
+                        .collect::<Vec<_>>();
+
+                    (entity.id(), components)
+                })
+                .collect::<Vec<_>>();
+
+            ipc.sender
+                .send(RuntimeToEditorMsg::Entities { entities })
+                .unwrap();
+
+            return;
+        }
+
+        EditorToRuntimeMsg::InsertComponent {
+            entity,
+            component: ron_component,
+        } => {
+            let type_registry_arc = (**world.resource::<AppTypeRegistry>()).clone();
+            let type_registry = type_registry_arc.read();
+            let component = world
+                .components()
+                .iter()
+                .find(|component| component.name() == ron_component.type_name)
+                .unwrap()
+                .clone();
+
+            let type_id = component.type_id().unwrap();
+            let Some(type_registration) = type_registry.get(type_id) else {
+                return;
+            };
+
+            let Some(reflect_from_ptr) = type_registration.data::<ReflectFromPtr>() else {
+                return;
+            };
+            println!("ron_component: {:?}", ron_component);
+            let mut deserializer =
+                roth_shared::serde_json::de::Deserializer::from_str(&ron_component.value);
+            let reflect_deserializer =
+                TypedReflectDeserializer::new(&type_registration, &type_registry);
+
+            let reflected = reflect_deserializer.deserialize(&mut deserializer).unwrap();
+            // let reflected = reflect_deserializer.de
+
+            unsafe {
+                let mut owning_ptr =
+                    OwningPtr::new(NonNull::new(std::alloc::alloc(component.layout())).unwrap());
+                let reflect = reflect_from_ptr.as_reflect_mut(owning_ptr.as_mut());
+                reflect.apply(&*reflected);
+
+                world
+                    .get_entity_mut(entity)
+                    .unwrap()
+                    .insert_by_id(component.id(), owning_ptr);
+            };
+
+            return;
+        }
+        _ => {}
+    }
+
     let mut system = SystemState::<(
         Query<(Entity, &mut Window)>,
         WindowAndInputEventWriters,
@@ -92,7 +214,7 @@ fn handle_ipc(mut world: &mut World) {
         } => {
             window.visible = true;
             window.focused = true;
-            window.window_level = bevy::window::WindowLevel::AlwaysOnTop;
+            // window.window_level = bevy::window::WindowLevel::AlwaysOnTop;
             window.resolution.set(width, height);
             let position = IVec2::new(window_position.x, window_position.y);
             let decorations_y_offset = 37;
@@ -180,6 +302,7 @@ fn handle_ipc(mut world: &mut World) {
                 ..default()
             });
         }
+
         _ => {}
     }
 }
@@ -193,9 +316,11 @@ struct EditorCommands<'w, 's> {
 }
 
 impl<'w, 's> EditorCommands<'w, 's> {
-    fn spawn(&mut self, bundle: impl Bundle) -> &mut Self {
-        self.commands.spawn(bundle).insert(EditorMarker);
-        self
+    fn spawn<'a>(&'a mut self, bundle: impl Bundle) -> EntityCommands<'w, 's, 'a> {
+        let mut s = self.commands.spawn_empty();
+        s.insert(bundle);
+        s.insert(EditorMarker);
+        s
     }
 }
 
@@ -213,12 +338,16 @@ fn setup_editor(
     // );
 
     // circular base
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(shape::Circle::new(4.0)),
-        material: materials.add(Color::WHITE),
-        transform: Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
-        ..default()
-    });
+    commands
+        .spawn(PbrBundle {
+            mesh: meshes.add(shape::Circle::new(4.0)),
+            material: materials.add(Color::WHITE),
+            transform: Transform::from_rotation(Quat::from_rotation_x(
+                -std::f32::consts::FRAC_PI_2,
+            )),
+            ..default()
+        })
+        .insert(Name::new("Cube!"));
 
     // light
     commands.spawn(PointLightBundle {

@@ -92,7 +92,7 @@ fn AssetItem<'a>(
 
     render! {
         view {
-            class: "w-84 h-84 p-8 hover:bg-zinc-700 flex-col justify-center items-center rounded-5",
+            class: "w-84 h-84 p-8 hover:bg-zinc-700 flex-col justify-center items-center text-white rounded-5",
             onclick: move |evt| onclick.call(evt),
 
             Image {

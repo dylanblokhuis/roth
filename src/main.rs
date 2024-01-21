@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 #[cfg(feature = "hot-reload")]
 use tpaint::prelude::dioxus_hot_reload;
 use tpaint::DomEventLoop;
@@ -8,6 +10,7 @@ mod app;
 mod asset_browser;
 mod console;
 mod drawer;
+mod inspector;
 mod scene_viewer;
 
 type UserEvent = ();
@@ -39,8 +42,8 @@ async fn main() {
         .with_transparent(true)
         .with_title("roth")
         .with_inner_size(winit::dpi::PhysicalSize {
-            width: 1440,
-            height: 900,
+            width: 1920,
+            height: 1080,
         })
         .build(&event_loop)
         .unwrap();

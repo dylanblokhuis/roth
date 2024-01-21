@@ -517,7 +517,7 @@ dependencies = [
 name = "bevy_ecs"
 version = "0.12.0"
 dependencies = [
- "async-channel 1.9.0",
+ "async-channel 2.1.1",
  "bevy_ecs_macros",
  "bevy_ptr",
  "bevy_reflect",
@@ -694,7 +694,7 @@ dependencies = [
  "quote",
  "rustc-hash",
  "syn 2.0.48",
- "toml_edit 0.20.7",
+ "toml_edit 0.21.0",
 ]
 
 [[package]]
@@ -770,7 +770,7 @@ dependencies = [
 name = "bevy_render"
 version = "0.12.0"
 dependencies = [
- "async-channel 1.9.0",
+ "async-channel 2.1.1",
  "bevy_app",
  "bevy_asset",
  "bevy_core",
@@ -865,7 +865,7 @@ dependencies = [
 name = "bevy_tasks"
 version = "0.12.0"
 dependencies = [
- "async-channel 1.9.0",
+ "async-channel 2.1.1",
  "async-executor",
  "async-task",
  "concurrent-queue",
@@ -1798,7 +1798,7 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 [[package]]
 name = "ecolor"
 version = "0.25.0"
-source = "git+https://github.com/emilk/egui#4c8b95f365983582ccb7a97a29bafeecd7f4d6bc"
+source = "git+https://github.com/emilk/egui#9e924ec5f08c57242ea4134aa85b053577f52eff"
 dependencies = [
  "bytemuck",
  "serde",
@@ -1813,7 +1813,7 @@ checksum = "a26ae43d7bcc3b814de94796a5e736d4029efb0ee900c12e2d54c993ad1a1e07"
 [[package]]
 name = "emath"
 version = "0.25.0"
-source = "git+https://github.com/emilk/egui#4c8b95f365983582ccb7a97a29bafeecd7f4d6bc"
+source = "git+https://github.com/emilk/egui#9e924ec5f08c57242ea4134aa85b053577f52eff"
 dependencies = [
  "bytemuck",
  "serde",
@@ -1895,7 +1895,7 @@ dependencies = [
 [[package]]
 name = "epaint"
 version = "0.25.0"
-source = "git+https://github.com/emilk/egui#4c8b95f365983582ccb7a97a29bafeecd7f4d6bc"
+source = "git+https://github.com/emilk/egui#9e924ec5f08c57242ea4134aa85b053577f52eff"
 dependencies = [
  "ab_glyph",
  "ahash 0.8.7",
@@ -1977,12 +1977,13 @@ dependencies = [
  "bevy",
  "ipc-channel",
  "roth_shared",
+ "serde",
 ]
 
 [[package]]
 name = "example_ui"
 version = "0.1.0"
-source = "git+https://github.com/dylanblokhuis/tpaint.git#56d6c6688ec6c331f7a14b9a1ece8fc4528de52b"
+source = "git+https://github.com/dylanblokhuis/tpaint.git#2a08abc01a5fb68734efcd76c8e1307a15d82905"
 dependencies = [
  "dioxus",
  "tpaint",
@@ -4337,7 +4338,9 @@ name = "roth_shared"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "ron",
  "serde",
+ "serde_json",
  "winit",
 ]
 
@@ -4690,9 +4693,9 @@ dependencies = [
 
 [[package]]
 name = "smol_str"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74212e6bbe9a4352329b2f68ba3130c15a3f26fe88ff22dbdc6cdd58fa85e99c"
+checksum = "e6845563ada680337a52d43bb0b29f396f2d911616f6573012645b9e3d048a49"
 dependencies = [
  "serde",
 ]
@@ -5081,17 +5084,6 @@ dependencies = [
 
 [[package]]
 name = "toml_edit"
-version = "0.20.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70f427fce4d84c72b5b732388bf4a9f4531b53f74e2887e3ecb2481f68f66d81"
-dependencies = [
- "indexmap",
- "toml_datetime",
- "winnow",
-]
-
-[[package]]
-name = "toml_edit"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d34d383cd00a163b4a5b85053df514d45bc330f6de7737edfe0a93311d1eaa03"
@@ -5110,7 +5102,7 @@ checksum = "b6bc1c9ce2b5135ac7f93c72918fc37feb872bdc6a5533a8b85eb4b86bfdae52"
 [[package]]
 name = "tpaint"
 version = "0.1.0"
-source = "git+https://github.com/dylanblokhuis/tpaint.git#56d6c6688ec6c331f7a14b9a1ece8fc4528de52b"
+source = "git+https://github.com/dylanblokhuis/tpaint.git#2a08abc01a5fb68734efcd76c8e1307a15d82905"
 dependencies = [
  "copypasta",
  "dioxus",
@@ -5132,7 +5124,7 @@ dependencies = [
 [[package]]
 name = "tpaint_wgpu"
 version = "0.1.0"
-source = "git+https://github.com/dylanblokhuis/tpaint.git#56d6c6688ec6c331f7a14b9a1ece8fc4528de52b"
+source = "git+https://github.com/dylanblokhuis/tpaint.git#2a08abc01a5fb68734efcd76c8e1307a15d82905"
 dependencies = [
  "bytemuck",
  "example_ui",

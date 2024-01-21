@@ -14,7 +14,7 @@
         blue: 1.0,
         alpha: 1.0,
       ),
-      brightness: 0.05,
+      brightness: 8.0,
     ),
     "bevy_pbr::light::DirectionalLightShadowMap": (
       size: 2048,
