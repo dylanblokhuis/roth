@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use bevy::ecs::entity::Entity;
 use dioxus::prelude::*;
 use roth_shared::{
@@ -43,13 +41,10 @@ pub fn Inspector(cx: Scope) -> Element {
                 } else {
                     components_state.set(vec![]);
                 }
-                // .map(|(_, components)| {
-                //     components_state
-                //         .set(components.iter().map(|it| RonComponent::from(it)).collect());
-                // });
             }
         }
     });
+    let selected_entity = shared_state.read().selected_entity;
 
     render! {
         view {
@@ -64,7 +59,7 @@ pub fn Inspector(cx: Scope) -> Element {
                         class: "text-white w-full items-center text-14",
                         onclick: move |_event: Event<_>| {
                             selected_component_state.set(Some((
-                                shared_state.read().selected_entity.unwrap(),
+                                selected_entity.unwrap(),
                                 component.clone()
                             )));
                         },
@@ -86,12 +81,10 @@ pub fn Inspector(cx: Scope) -> Element {
                         }
                     }
 
-
-
-                    if selected_component_state.get().as_ref().map(|(_, selected_component)| *selected_component == *component).unwrap_or(false) {
+                    if selected_component_state.get().as_ref().map(|(entity, selected_component)| selected_entity.unwrap() == *entity && *selected_component.type_name == *component.type_name).unwrap_or(false) {
                         rsx!{
                             ComponentProperties {
-                                entity: shared_state.read().selected_entity.unwrap(),
+                                entity: selected_entity.unwrap(),
                                 ron_component: component.clone(),
                             }
                         }
@@ -103,29 +96,23 @@ pub fn Inspector(cx: Scope) -> Element {
     }
 }
 
-#[derive(Clone)]
-pub struct Properties {
-    entity: Entity,
-    component: RonComponent,
-}
-
 #[component]
 fn ComponentProperties(cx: Scope, entity: Entity, ron_component: RonComponent) -> Element {
     let ron_component = cx.use_hook(|| ron_component.clone());
-    // let component = cx.use_hook(|| ron_component.components().clone());
     let shared_state = use_shared_state::<SharedState>(cx).unwrap();
 
     let type_name = ron_component.type_name.clone();
     let components_mut = ron_component.components_mut();
     let init_ptr = components_mut as *mut Value;
 
-    fn recurse_value(
-        value: &mut Value,
+    fn recurse_value<'a>(
+        value: &'a mut Value,
         state: UseSharedState<SharedState>,
         init_ptr: *mut Value,
         entity: Entity,
         type_name: String,
-    ) -> Vec<LazyNodes> {
+        mut parent_keys: Vec<String>,
+    ) -> Vec<LazyNodes<'a, 'a>> {
         let ptr = value as *mut Value;
 
         match value {
@@ -138,15 +125,18 @@ fn ComponentProperties(cx: Scope, entity: Entity, ron_component: RonComponent) -
 
                     let state = state.clone();
                     let type_name = type_name.clone();
+                    let key: String = key.clone();
+                    parent_keys.push(key.clone());
+                    let parent_keys = parent_keys.clone();
 
                     rsx! {
                         view {
                             class: "w-full flex-row justify-between items-start text-white",
-                            key: "{key}",
+                            key: "{entity:?}-{type_name}-{parent_keys:?}-{key}",
                             "{key}: ",
                             view {
                                 class: "flex-col",
-                                recurse_value(value, state, init_ptr, entity, type_name).into_iter()
+                                recurse_value(value, state, init_ptr, entity, type_name, parent_keys).into_iter()
                             }
                         }
                     }
@@ -158,22 +148,20 @@ fn ComponentProperties(cx: Scope, entity: Entity, ron_component: RonComponent) -
                         rsx! {
                             view {
                                 class: "text-white",
+                                key: "{entity:?}-{type_name}-{parent_keys:?}-{val.get():.2}",
                                 onclick: move |_event: Event<_>| {
+                                    let new_value = val.get() + 1.0;
                                     unsafe {
-                                        (*ptr) = Value::Number(Number::Float(Float::new(5.0)));
+                                        (*ptr) = Value::Number(Number::Float(Float::new(new_value)));
                                     }
-
-                                    let value = unsafe { &*init_ptr };
-
-                                    println!("value: {:?}", value);
 
                                     state.read().send_to_runtime(roth_shared::EditorToRuntimeMsg::InsertComponent {
                                         entity,
                                         component: RonComponentSerialized {
                                             type_name: type_name.clone(),
-                                            value: roth_shared::serde_json::to_string(value).unwrap()
+                                            value: roth_shared::serde_json::to_string(unsafe { &*init_ptr }).unwrap()
                                         }
-                                     });
+                                    });
                                 },
                                 "{val.get():.2}",
                             }
@@ -183,6 +171,7 @@ fn ComponentProperties(cx: Scope, entity: Entity, ron_component: RonComponent) -
                         rsx! {
                             view {
                                 class: "text-white",
+                                key: "{entity:?}-{type_name}-{parent_keys:?}-{val}",
                                 "{val}",
                             }
                         }
@@ -191,15 +180,17 @@ fn ComponentProperties(cx: Scope, entity: Entity, ron_component: RonComponent) -
 
                 vec![node]
             }
-            _ => vec![],
+            unimplemented => {
+                println!("unimplemented: {:?}", unimplemented);
+                vec![]
+            }
         }
     }
 
     render! {
         view {
             class: "w-full flex-col gap-10 mt-10",
-
-            recurse_value(components_mut, shared_state.to_owned(), init_ptr, *entity, type_name).into_iter()
+            recurse_value(components_mut, shared_state.to_owned(), init_ptr, *entity, type_name.clone(), vec![type_name.clone()]).into_iter()
         }
     }
 }

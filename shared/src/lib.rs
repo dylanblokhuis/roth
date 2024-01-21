@@ -1,10 +1,5 @@
-use std::ops::Deref;
-
-use ::ron::{Map, Value};
-use bevy::{
-    ecs::entity::Entity,
-    reflect::{serde::ReflectSerializer, Reflect, TypeInfo, TypeRegistry},
-};
+use ::ron::Value;
+use bevy::ecs::entity::Entity;
 use serde::{Deserialize, Serialize};
 use winit::{dpi::PhysicalPosition, keyboard::SmolStr};
 
@@ -118,9 +113,6 @@ impl RonComponent {
             panic!("expected component value to always be a map");
         };
 
-        // println!("{:#?}", map);
-
-        // let value = ;
         map.values().next().unwrap()
     }
 
@@ -129,9 +121,6 @@ impl RonComponent {
             panic!("expected component value to always be a map");
         };
 
-        // println!("{:#?}", map);
-
-        // let value = ;
         map.values_mut().next().unwrap()
     }
 }
